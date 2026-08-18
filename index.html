@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Notre routine de la semaine</title>
+<style>
+  :root {
+    --faustine: #e64980;
+    --faustine-bg: #fff0f6;
+    --victoria: #7048e8;
+    --victoria-bg: #f3f0ff;
+    --ink: #2d2a26;
+    --muted: #8a8378;
+    --card-radius: 20px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif;
+    background: linear-gradient(160deg, #fff9f0, #eef4ff 60%);
+    color: var(--ink);
+  }
+  body { padding: 20px 16px 50px; min-height: 100vh; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  .banner {
+    display: none;
+    background: #ffe3e3;
+    color: #a61e1e;
+    border-radius: 14px;
+    padding: 10px 16px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .banner.show { display: block; }
+
+  .header {
+    background: linear-gradient(135deg, #ffd8a8, #ffb4a2);
+    border-radius: var(--card-radius);
+    padding: 20px 26px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .header h1 { margin: 0; font-size: 26px; }
+
+  .days-nav {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .day-btn {
+    background: white;
+    border: 2.5px solid #e6e1d8;
+    border-radius: 14px;
+    padding: 10px 4px 8px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .day-btn .dnum { display:block; font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .day-btn .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #d8d3c8;
+    margin-top: 5px;
+  }
+  .day-btn.today { border-color: #ffa94d; }
+  .day-btn.selected { background: #fff4e6; border-color: #f76707; }
+  .day-btn .dot.partial { background: #ffc078; }
+  .day-btn .dot.full { background: #40c057; }
+
+  .progress-wrap {
+    background: white;
+    border-radius: 16px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .progress-label { display:flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 6px;}
+  .progress-bar { height: 12px; background: #eee; border-radius: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg,#63e6be,#38d9a9); transition: width .4s ease; }
+
+  .child-section {
+    background: white;
+    border-radius: var(--card-radius);
+    padding: 16px 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .child-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 19px;
+    font-weight: 700;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+  .child-title.faustine { background: var(--faustine); }
+  .child-title.victoria { background: var(--victoria); }
+
+  .tasks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .task-btn {
+    border: 2.5px solid #e2ddd3;
+    background: #fbfaf8;
+    border-radius: 14px;
+    padding: 16px 10px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+    transition: transform .15s ease, background .2s ease, border-color .2s ease;
+    min-height: 84px;
+  }
+  .task-btn .emoji { font-size: 28px; display: block; margin-bottom: 6px; }
+  .task-btn:active { transform: scale(0.95); }
+  .faustine .task-btn.done { background: var(--faustine-bg); border-color: var(--faustine); }
+  .victoria .task-btn.done { background: var(--victoria-bg); border-color: var(--victoria); }
+  .task-btn.done .emoji::after { content: " \2705"; }
+  .task-btn.bounce { animation: bounce .4s ease; }
+  @keyframes bounce {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  .celebration {
+    display: none;
+    text-align: center;
+    background: #fff9db;
+    border-radius: var(--card-radius);
+    padding: 18px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .celebration.show { display: block; animation: pop .5s ease; }
+  @keyframes pop { 0% { transform: scale(0.85); opacity:0; } 100% { transform: scale(1); opacity:1; } }
+
+  .note {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 18px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner" id="storageBanner">⚠️ Le stockage n'est pas disponible sur cet appareil/navigateur (mode privé ?). Les coches ne seront pas conservées après fermeture.</div>
+
+  <div class="header">
+    <h1 id="titleLabel">🏡 Notre routine de la semaine</h1>
+  </div>
+
+  <div class="days-nav" id="daysNav"></div>
+
+  <div class="progress-wrap">
+    <div class="progress-label"><span id="progressDayLabel">Tâches faites</span><span id="progressText">0 / 0</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="child-section faustine">
+    <div class="child-title faustine">👧 Faustine</div>
+    <div class="tasks" id="tasksFaustine"></div>
+  </div>
+
+  <div class="child-section victoria">
+    <div class="child-title victoria">👧 Victoria</div>
+    <div class="tasks" id="tasksVictoria"></div>
+  </div>
+
+  <div class="celebration" id="celebration">🎉 Bravo les filles, toutes les tâches de la journée sont faites ! 🌟</div>
+
+  <div class="note">Les coches sont enregistrées sur cette tablette pour toute la semaine (Lun → Dim). Une nouvelle semaine démarre automatiquement le lundi.</div>
+
+</div>
+
+<script>
+  // days: optional array of day indices (0=Lun ... 6=Dim) this task applies to. Omit = every day.
+  const TASKS = [
+    { id: "matin", emoji: "🦷", label: "Dents — matin" },
+    { id: "soir", emoji: "🌙", label: "Dents — soir" },
+    { id: "petitdej", emoji: "🍽️", label: "Petit-déj (table)" },
+    { id: "dejeuner", emoji: "🍽️", label: "Déjeuner (table)", days: [2,5,6] },
+    { id: "diner", emoji: "🍽️", label: "Dîner (table)" },
+    { id: "devoirs", emoji: "📚", label: "Devoirs" }
+  ];
+  const CHILDREN = ["faustine", "victoria"];
+  const STORAGE_KEY = "famille_routine_v2";
+  const DAY_LABELS = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+
+  let storageAvailable = true;
+  let db = {};
+  let selectedDateStr = null;
+  let selectedDayIdx = 0;
+  let weekKey = null;
+  let weekDates = [];
+
+  function tasksForDay(dayIdx) {
+    return TASKS.filter(t => !t.days || t.days.includes(dayIdx));
+  }
+
+  function testStorage() {
+    try {
+      const k = "__test__" + Math.random();
+      localStorage.setItem(k, "1");
+      localStorage.removeItem(k);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function loadDb() {
+    if (!storageAvailable) return {};
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+
+  function saveDb() {
+    if (!storageAvailable) return;
+    try {
+      const keys = Object.keys(db).sort();
+      if (keys.length > 6) {
+        keys.slice(0, keys.length - 6).forEach(k => delete db[k]);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    } catch (e) { /* ignore */ }
+  }
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+
+  function getMonday(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    d.setHours(0,0,0,0);
+    return d;
+  }
+
+  function isoWeekInfo(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return { isoYear: d.getUTCFullYear(), week };
+  }
+
+  function ensureDay(dateStr) {
+    if (!db[weekKey]) db[weekKey] = { faustine: {}, victoria: {} };
+    CHILDREN.forEach(child => {
+      if (!db[weekKey][child][dateStr]) db[weekKey][child][dateStr] = {};
+    });
+  }
+
+  function dayCompletion(dateStr, dayIdx) {
+    const applicable = tasksForDay(dayIdx);
+    let done = 0;
+    CHILDREN.forEach(child => {
+      const rec = (db[weekKey] && db[weekKey][child][dateStr]) || {};
+      done += applicable.filter(t => rec[t.id]).length;
+    });
+    return { done, total: applicable.length * CHILDREN.length };
+  }
+
+  function renderDaysNav() {
+    const nav = document.getElementById('daysNav');
+    nav.innerHTML = "";
+    const todayStr = toDateStr(new Date());
+    weekDates.forEach((d, i) => {
+      const dateStr = toDateStr(d);
+      const btn = document.createElement('div');
+      btn.className = 'day-btn';
+      if (dateStr === todayStr) btn.classList.add('today');
+      if (dateStr === selectedDateStr) btn.classList.add('selected');
+      const { done, total } = dayCompletion(dateStr, i);
+      let dotClass = 'dot';
+      if (done > 0 && done === total) dotClass += ' full';
+      else if (done > 0) dotClass += ' partial';
+      btn.innerHTML = `${DAY_LABELS[i]}<span class="dnum">${d.getDate()}</span><span class="${dotClass}"></span>`;
+      btn.addEventListener('click', () => { selectedDateStr = dateStr; selectedDayIdx = i; renderAll(); });
+      nav.appendChild(btn);
+    });
+  }
+
+  function renderTasks() {
+    ensureDay(selectedDateStr);
+    const applicable = tasksForDay(selectedDayIdx);
+    CHILDREN.forEach(child => {
+      const container = document.getElementById(child === 'faustine' ? 'tasksFaustine' : 'tasksVictoria');
+      container.innerHTML = "";
+      applicable.forEach(task => {
+        const done = !!db[weekKey][child][selectedDateStr][task.id];
+        const btn = document.createElement('div');
+        btn.className = 'task-btn' + (done ? ' done' : '');
+        btn.innerHTML = `<span class="emoji">${task.emoji}</span>${task.label}`;
+        btn.addEventListener('click', () => toggleTask(btn, child, task.id));
+        container.appendChild(btn);
+      });
+    });
+    updateProgress();
+  }
+
+  function toggleTask(btn, child, taskId) {
+    const rec = db[weekKey][child][selectedDateStr];
+    rec[taskId] = !rec[taskId];
+    btn.classList.toggle('done', rec[taskId]);
+    btn.classList.remove('bounce');
+    void btn.offsetWidth;
+    btn.classList.add('bounce');
+    saveDb();
+    updateProgress();
+    renderDaysNav();
+  }
+
+  function updateProgress() {
+    const { done, total } = dayCompletion(selectedDateStr, selectedDayIdx);
+    document.getElementById('progressText').textContent = `${done} / ${total}`;
+    document.getElementById('progressFill').style.width = total ? `${(done/total)*100}%` : '0%';
+    const isToday = selectedDateStr === toDateStr(new Date());
+    document.getElementById('progressDayLabel').textContent = isToday ? "Tâches faites aujourd'hui" : "Tâches faites ce jour-là";
+    document.getElementById('celebration').classList.toggle('show', total > 0 && done === total);
+  }
+
+  function renderAll() {
+    renderDaysNav();
+    renderTasks();
+  }
+
+  function init() {
+    storageAvailable = testStorage();
+    document.getElementById('storageBanner').classList.toggle('show', !storageAvailable);
+    db = loadDb();
+
+    const today = new Date();
+    const monday = getMonday(today);
+    weekDates = Array.from({length:7}, (_,i) => { const d = new Date(monday); d.setDate(monday.getDate()+i); return d; });
+    const info = isoWeekInfo(weekDates[0]);
+    weekKey = `${info.isoYear}-W${pad(info.week)}`;
+    selectedDateStr = toDateStr(today);
+    selectedDayIdx = weekDates.findIndex(d => toDateStr(d) === selectedDateStr);
+
+    renderAll();
+  }
+
+  init();
+</script>
+</body>
+</html>
