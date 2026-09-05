@@ -219,6 +219,57 @@
   .flashcard.flipped { background: var(--subj-bg, #f3f0ff); color: var(--subj-color, #7048e8); border: 2px solid var(--subj-color, #7048e8); }
   .flash-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
 
+  /* Free-text self-check exercise */
+  .write-q { margin-bottom: 14px; }
+  .write-q:last-of-type { margin-bottom: 10px; }
+  .write-question { font-size: 12.5px; font-weight: 600; margin-bottom: 6px; color: var(--ink); }
+  .write-input {
+    width: 100%;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .write-input:focus { outline: none; border-color: var(--subj-color, #7048e8); }
+  .write-correction { display: none; margin-top: 6px; font-size: 12.5px; line-height: 1.5; }
+  .write-correction.show { display: block; }
+  .write-yours { display: block; color: var(--muted); margin-bottom: 2px; }
+  .write-answer { display: block; color: #69db7c; font-weight: 700; }
+  .validate-btn {
+    margin-top: 4px;
+    background: var(--subj-color, #7048e8);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  /* Matching exercise */
+  .match-wrap { display: flex; gap: 10px; }
+  .match-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .match-item {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1.35;
+  }
+  .match-item.selected { border-color: var(--subj-color, #7048e8); background: var(--subj-bg, rgba(112,72,232,0.16)); }
+  .match-item.correct { border-color: #40c057; background: rgba(64,192,87,0.16); color: #69db7c; cursor: default; }
+  .match-item.wrong { border-color: #fa5252; background: rgba(250,82,82,0.16); color: #ff8787; }
+  .match-status { margin-top: 10px; font-size: 13px; font-weight: 700; color: #69db7c; min-height: 18px; }
+
   .footnote {
     text-align: center;
     font-size: 12px;
@@ -233,7 +284,7 @@
 
   <div class="header">
     <h1>📚 Devoirs de Victoria 🦋</h1>
-    <div class="sub">Semaine du 7 septembre — depuis Pronote</div>
+    <div class="sub">7 derniers jours + à venir — depuis Pronote</div>
   </div>
 
   <div class="progress-card">
@@ -248,7 +299,7 @@
   <div id="days"></div>
 
   <div class="footnote">
-    Coche chaque devoir une fois fait (et chaque affaire une fois préparée) — ça reste enregistré sur cet appareil. Les blocs "S'entraîner" sont générés à partir du contenu réel du cours (ici : le tableau des symboles électriques et la leçon d'espagnol) — envoie-moi les devoirs de la semaine suivante (texte Pronote + PDF joints) et je mets à jour la page.
+    Coche chaque devoir une fois fait (et chaque affaire une fois préparée) — ça reste enregistré sur cet appareil. La page ne garde que les 7 derniers jours d'historique (les devoirs à venir restent toujours affichés, quelle que soit la date) — au-delà, ils sortent de vue automatiquement. Envoie-moi les devoirs de la semaine suivante (texte Pronote + PDF joints) et je mets à jour la page.
   </div>
 
 </div>
@@ -256,7 +307,21 @@
 <script>
   // --- Real homework data, from the Pronote text + PDFs Victoria's parent
   // sent on 2026-09-04 (Lundi 7 sept. + Mardi 8 sept.). To add a new week,
-  // replace/extend this array with the next batch of homework.
+  // just APPEND new {dateISO, items} entries below — never delete or
+  // reorder past ones by hand, the page hides anything more than 7 days old
+  // on its own (see CUTOFF_DAYS / visibleHomework() further down).
+  //
+  // dateISO must be a real "YYYY-MM-DD" — it's both what's displayed (via
+  // formatDayLabel) and the stable key checkboxes are stored under, so it
+  // has to be accurate and never reused for two different days.
+  //
+  // Housekeeping note for whoever (Claude) edits this file next: the 7-day
+  // window only hides old entries from view — it doesn't shrink this array
+  // or the DOCS object below, so the file (especially embedded PDFs) grows
+  // a little every week. Feel free to actually delete HOMEWORK entries and
+  // their matching DOCS entries once they're well past the 7-day window (no
+  // one will see them go) to keep the file size sane over a school year.
+  //
   // PDFs embedded as data URIs so the doc badges are directly clickable —
   // keeps the app a single self-contained file (no separate assets to
   // upload alongside it to GitHub Pages). Only docs we actually received
@@ -269,7 +334,7 @@
 
   const HOMEWORK = [
     {
-      day: 'Lundi', date: '7 septembre',
+      dateISO: '2026-09-07',
       items: [
         {
           subject: 'Enseignement moral et civique',
@@ -300,7 +365,7 @@
       ]
     },
     {
-      day: 'Mardi', date: '8 septembre',
+      dateISO: '2026-09-08',
       items: [
         {
           subject: 'Espagnol LV2',
@@ -313,6 +378,14 @@
               { front: 'Comment dire "Je m\'appelle..." en espagnol ?', back: 'Me llamo...' },
               { front: 'Comment dire "Ma professeure s\'appelle..." en espagnol ?', back: 'Mi profesora se llama...' },
               { front: '"¿Cómo te llamas?" veut dire quoi ?', back: 'Comment tu t\'appelles ?' }
+            ]
+          },
+          exercise: {
+            kind: 'write',
+            title: "Exercice : écris les deux phrases",
+            prompts: [
+              { question: 'Comment dis-tu "Je m\'appelle..." en espagnol ?', answer: 'Me llamo...' },
+              { question: 'Comment dis-tu "Ma professeure s\'appelle..." en espagnol ?', answer: 'Mi profesora se llama...' }
             ]
           }
         },
@@ -348,6 +421,21 @@
               { front: 'Moteur (symbole M) — son rôle ?', back: 'Il crée un mouvement.' },
               { front: 'Résistance (symbole R) — son rôle ?', back: 'Elle fournit de la chaleur ou limite le courant électrique.' }
             ]
+          },
+          exercise: {
+            kind: 'match',
+            title: "Exercice : relie chaque dipôle à sa définition",
+            pairs: [
+              { name: 'Fil électrique', def: 'Il relie les dipôles.' },
+              { name: 'Interrupteur', def: 'Il ouvre ou ferme le circuit.' },
+              { name: 'Pile', def: "Elle fournit l'énergie électrique aux récepteurs." },
+              { name: 'Alimentation électrique (G)', def: 'Elle provoque la circulation du courant qui transporte l\'énergie.' },
+              { name: 'Lampe (L)', def: 'Elle fournit de la lumière.' },
+              { name: 'Diode', def: 'Elle contrôle le sens du courant électrique.' },
+              { name: 'DEL', def: "Elle contrôle le sens du courant et s'allume si le courant la traverse." },
+              { name: 'Moteur (M)', def: 'Il crée un mouvement.' },
+              { name: 'Résistance (R)', def: 'Elle fournit de la chaleur ou limite le courant électrique.' }
+            ]
           }
         }
       ]
@@ -355,6 +443,132 @@
   ];
 
   const STORAGE_KEY = 'victoria_devoirs_done_v1';
+
+  // Free-text self-check exercise: she writes her own answer, clicks
+  // "Valider", and the correction appears right below her own answer for
+  // comparison — no automatic right/wrong grading (accents/wording vary too
+  // much for that to be fair), just an honest self-check.
+  function renderWriteExercise(panel, exercise) {
+    panel.innerHTML = `<div class="train-title">Écris ta réponse, puis valide pour voir la correction</div>`;
+    const entries = [];
+    exercise.prompts.forEach((p, i) => {
+      const q = document.createElement('div');
+      q.className = 'write-q';
+      const label = document.createElement('div');
+      label.className = 'write-question';
+      label.textContent = `${i + 1}. ${p.question}`;
+      const input = document.createElement('textarea');
+      input.className = 'write-input';
+      input.rows = 1;
+      input.placeholder = 'Écris ta réponse ici...';
+      const correction = document.createElement('div');
+      correction.className = 'write-correction';
+      correction.innerHTML = `<span class="write-yours"></span><span class="write-answer">✅ Correction : ${p.answer}</span>`;
+      q.appendChild(label);
+      q.appendChild(input);
+      q.appendChild(correction);
+      panel.appendChild(q);
+      entries.push({ input, correction });
+    });
+    const validateBtn = document.createElement('button');
+    validateBtn.type = 'button';
+    validateBtn.className = 'validate-btn';
+    validateBtn.textContent = '✅ Valider et voir la correction';
+    validateBtn.addEventListener('click', () => {
+      entries.forEach(({ input, correction }) => {
+        const val = input.value.trim();
+        correction.querySelector('.write-yours').textContent = val ? `Ta réponse : ${val}` : "Tu n'as rien écrit —";
+        correction.classList.add('show');
+      });
+    });
+    panel.appendChild(validateBtn);
+  }
+
+  // Matching exercise: click a name then its definition to pair them up.
+  // Correct pairs lock in green; a wrong pair flashes red then unlocks so
+  // she can try again. Definitions are shuffled so it isn't just "top to
+  // top, bottom to bottom".
+  function renderMatchExercise(panel, exercise) {
+    const pairs = exercise.pairs;
+    const names = pairs.map((p, i) => ({ id: i, text: p.name }));
+    const defs = shuffle(pairs.map((p, i) => ({ id: i, text: p.def })));
+
+    panel.innerHTML = `<div class="train-title">Clique un nom, puis sa définition, pour les relier</div>`;
+
+    const matchWrap = document.createElement('div');
+    matchWrap.className = 'match-wrap';
+    const nameCol = document.createElement('div');
+    nameCol.className = 'match-col';
+    const defCol = document.createElement('div');
+    defCol.className = 'match-col';
+
+    const statusMsg = document.createElement('div');
+    statusMsg.className = 'match-status';
+
+    let selectedNameBtn = null, selectedNameId = null;
+    const matched = new Set();
+
+    names.forEach(n => {
+      const btn = document.createElement('div');
+      btn.className = 'match-item match-name';
+      btn.textContent = n.text;
+      btn.addEventListener('click', () => {
+        if (matched.has(n.id)) return;
+        if (selectedNameBtn) selectedNameBtn.classList.remove('selected');
+        selectedNameBtn = btn;
+        selectedNameId = n.id;
+        btn.classList.add('selected');
+      });
+      nameCol.appendChild(btn);
+    });
+
+    defs.forEach(d => {
+      const btn = document.createElement('div');
+      btn.className = 'match-item match-def';
+      btn.textContent = d.text;
+      btn.addEventListener('click', () => {
+        if (matched.has(d.id) || selectedNameId === null) return;
+        if (d.id === selectedNameId) {
+          btn.classList.remove('selected');
+          btn.classList.add('correct');
+          selectedNameBtn.classList.remove('selected');
+          selectedNameBtn.classList.add('correct');
+          matched.add(d.id);
+          selectedNameBtn = null;
+          selectedNameId = null;
+          if (matched.size === pairs.length) {
+            statusMsg.textContent = '🎉 Bravo, tout est associé !';
+          }
+        } else {
+          const wrongDefBtn = btn;
+          const wrongNameBtn = selectedNameBtn;
+          wrongDefBtn.classList.add('wrong');
+          wrongNameBtn.classList.add('wrong');
+          selectedNameBtn = null;
+          selectedNameId = null;
+          setTimeout(() => {
+            wrongDefBtn.classList.remove('wrong');
+            wrongNameBtn.classList.remove('wrong', 'selected');
+          }, 500);
+        }
+      });
+      defCol.appendChild(btn);
+    });
+
+    matchWrap.appendChild(nameCol);
+    matchWrap.appendChild(defCol);
+    panel.appendChild(matchWrap);
+    panel.appendChild(statusMsg);
+  }
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
 
   function hexToRgba(hex, alpha) {
     const h = hex.replace('#', '');
@@ -374,26 +588,83 @@
 
   let done = loadDone();
 
-  function itemId(dayIdx, itemIdx) { return `d${dayIdx}i${itemIdx}`; }
-  function subId(dayIdx, itemIdx, subIdx) { return `d${dayIdx}i${itemIdx}s${subIdx}`; }
+  // --- Rolling 7-day history: everything more than 7 days in the past is
+  // hidden automatically (today and every future day always stay visible —
+  // it's only *past* homework that rolls off). This means new weeks can
+  // just be appended to HOMEWORK below without ever worrying about the page
+  // growing forever or about manually deleting old weeks.
+  //
+  // IDs are keyed by the day's real dateISO (not its position in the
+  // HOMEWORK array), so they stay stable no matter how many weeks pile up
+  // above or below a given day, and no matter the order they were typed in.
+  // This also matters for correctness, not just tidiness: with the old
+  // position-based ids (d0i0, d1i2...), replacing or reordering a week could
+  // silently attach an old "done" checkmark to a completely different new
+  // task. Keying by date makes that impossible.
+  const CUTOFF_DAYS = 7;
+  const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+
+  // Whole days between two ISO dates (b - a), local-time based (not UTC),
+  // so it's not thrown off by DST shifts.
+  function daysBetween(isoA, isoB) {
+    const [ay, am, ad] = isoA.split('-').map(Number);
+    const [by, bm, bd] = isoB.split('-').map(Number);
+    const a = new Date(ay, am - 1, ad);
+    const b = new Date(by, bm - 1, bd);
+    return Math.round((b - a) / 86400000);
+  }
+
+  function formatDayLabel(dateISO) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return `${DAY_NAMES[date.getDay()]} ${d} ${MONTH_NAMES[m - 1]}`;
+  }
+
+  // Only today's and future homework, plus up to CUTOFF_DAYS of past history.
+  function visibleHomework() {
+    const todayISO = toDateStr(new Date());
+    return HOMEWORK.filter(d => daysBetween(d.dateISO, todayISO) <= CUTOFF_DAYS);
+  }
+
+  // Garbage-collect "done" flags for days that have rolled off the 7-day
+  // window, so localStorage doesn't grow forever either.
+  function pruneDoneStorage() {
+    const todayISO = toDateStr(new Date());
+    let changed = false;
+    Object.keys(done).forEach(key => {
+      const dateISO = key.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateISO) && daysBetween(dateISO, todayISO) > CUTOFF_DAYS) {
+        delete done[key];
+        changed = true;
+      }
+    });
+    if (changed) saveDone(done);
+  }
+
+  function itemId(dateISO, itemIdx) { return `${dateISO}i${itemIdx}`; }
+  function subId(dateISO, itemIdx, subIdx) { return `${dateISO}i${itemIdx}s${subIdx}`; }
 
   function renderDays() {
     const container = document.getElementById('days');
     container.innerHTML = '';
     let totalItems = 0, doneItems = 0;
 
-    HOMEWORK.forEach((dayData, dayIdx) => {
+    visibleHomework().forEach((dayData) => {
       const card = document.createElement('div');
       card.className = 'day-card';
 
       const head = document.createElement('div');
       head.className = 'day-head';
-      head.innerHTML = `<span class="dname">${dayData.day} ${dayData.date}</span><span class="dcount">${dayData.items.length} devoir${dayData.items.length > 1 ? 's' : ''}</span>`;
+      head.innerHTML = `<span class="dname">${formatDayLabel(dayData.dateISO)}</span><span class="dcount">${dayData.items.length} devoir${dayData.items.length > 1 ? 's' : ''}</span>`;
       card.appendChild(head);
 
       dayData.items.forEach((item, itemIdx) => {
         totalItems++;
-        const id = itemId(dayIdx, itemIdx);
+        const id = itemId(dayData.dateISO, itemIdx);
         const isDone = !!done[id];
         if (isDone) doneItems++;
 
@@ -439,7 +710,7 @@
           const list = document.createElement('div');
           list.className = 'sub-checklist';
           item.checklist.forEach((q, subIdx) => {
-            const sid = subId(dayIdx, itemIdx, subIdx);
+            const sid = subId(dayData.dateISO, itemIdx, subIdx);
             const subDone = !!done[sid];
             const line = document.createElement('div');
             line.className = 'sub-checklist-item' + (subDone ? ' done' : '');
@@ -455,7 +726,7 @@
         }
 
         if (item.train) {
-          const panelId = `train-${dayIdx}-${itemIdx}`;
+          const panelId = `train-${dayData.dateISO}-${itemIdx}`;
           const trainBtn = document.createElement('div');
           trainBtn.className = 'train-btn';
           trainBtn.textContent = `🎯 ${item.train.title}`;
@@ -486,6 +757,27 @@
           content.appendChild(panel);
         }
 
+        if (item.exercise) {
+          const exPanelId = `ex-${dayData.dateISO}-${itemIdx}`;
+          const exBtn = document.createElement('div');
+          exBtn.className = 'train-btn';
+          exBtn.textContent = `📝 ${item.exercise.title}`;
+          exBtn.addEventListener('click', () => {
+            document.getElementById(exPanelId).classList.toggle('open');
+          });
+          content.appendChild(exBtn);
+
+          const exPanel = document.createElement('div');
+          exPanel.className = 'train-panel';
+          exPanel.id = exPanelId;
+          if (item.exercise.kind === 'write') {
+            renderWriteExercise(exPanel, item.exercise);
+          } else if (item.exercise.kind === 'match') {
+            renderMatchExercise(exPanel, item.exercise);
+          }
+          content.appendChild(exPanel);
+        }
+
         row.appendChild(check);
         row.appendChild(content);
         card.appendChild(row);
@@ -498,6 +790,7 @@
     document.getElementById('progressBar').style.width = totalItems ? `${(doneItems / totalItems) * 100}%` : '0%';
   }
 
+  pruneDoneStorage();
   renderDays();
 </script>
 </body>
