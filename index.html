@@ -250,6 +250,29 @@
     padding: 6px 12px;
   }
 
+  /* Jour à venir sans aucun devoir saisi (voir nextSchoolDays / day-card
+     synthétique), et matière prévue mais non couverte par un devoir saisi
+     dans un vrai jour (voir subjectsScheduledOn). */
+  .day-card-empty { border: 2px dashed var(--border); background: transparent; box-shadow: none; }
+  .day-card-empty .dcount { font-style: italic; }
+  .subject-tip-row {
+    border-radius: 14px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border: 2px solid var(--subj-border, var(--border));
+    background: var(--subj-bg, var(--surface-2));
+  }
+  .subject-tip-label {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: white;
+    background: var(--subj-color, #7048e8);
+    padding: 2px 9px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+
   /* Free-text self-check exercise */
   .write-q { margin-bottom: 14px; }
   .write-q:last-of-type { margin-bottom: 10px; }
@@ -1070,13 +1093,146 @@
     return null;
   }
 
+  // Construit le bloc "tip de révision" (bouton + flashcard, ou rappel
+  // générique si on n'a rien) pour une matière donnée. Réutilisé à la fois
+  // pour un devoir précis (excludeItem = cet item, pour ne pas se citer
+  // lui-même) et pour une matière qui n'a même pas de devoir ce jour-là
+  // (excludeItem = null).
+  function buildRevisionTip(subject, excludeItem, idSeed) {
+    const source = findRevisionSource(subject, excludeItem);
+    const tipCard = source ? pickTipCard(source.item) : null;
+    const wrap = document.createElement('div');
+
+    if (tipCard) {
+      const tipPanelId = `tip-${idSeed}`;
+      const tipBtn = document.createElement('div');
+      tipBtn.className = 'tip-btn';
+      tipBtn.textContent = '💡 Petit tip de révision';
+      tipBtn.addEventListener('click', () => {
+        document.getElementById(tipPanelId).classList.toggle('open');
+      });
+      wrap.appendChild(tipBtn);
+
+      const tipPanel = document.createElement('div');
+      tipPanel.className = 'train-panel';
+      tipPanel.id = tipPanelId;
+      tipPanel.innerHTML = `<div class="train-title">Clique sur la carte pour voir la réponse</div>`;
+
+      const tipRow = document.createElement('div');
+      tipRow.className = 'flash-row';
+      const fc = document.createElement('div');
+      fc.className = 'flashcard';
+      fc.textContent = tipCard.front;
+      fc.dataset.front = tipCard.front;
+      fc.dataset.back = tipCard.back;
+      fc.addEventListener('click', () => {
+        const flipped = fc.classList.toggle('flipped');
+        fc.textContent = flipped ? fc.dataset.back : fc.dataset.front;
+      });
+      tipRow.appendChild(fc);
+      tipPanel.appendChild(tipRow);
+
+      const tipSource = document.createElement('div');
+      tipSource.className = 'tip-source';
+      tipSource.textContent = `(repris du ${formatDayLabel(source.dateISO).toLowerCase()})`;
+      tipPanel.appendChild(tipSource);
+
+      wrap.appendChild(tipPanel);
+    } else {
+      const generic = document.createElement('div');
+      generic.className = 'tip-generic';
+      generic.textContent = `🔁 Pense à réviser : ${subject}`;
+      wrap.appendChild(generic);
+    }
+    return wrap;
+  }
+
+  // Petit bloc "matière + tip" autonome (pas rattaché à un devoir précis) :
+  // utilisé pour une matière qui a cours à une date donnée mais n'a aucun
+  // devoir saisi ce jour-là (ni comme item d'un vrai jour, ni comme jour
+  // entier manquant).
+  function buildSubjectTipRow(subject, dateISO) {
+    const row = document.createElement('div');
+    row.className = 'subject-tip-row';
+    const color = scheduleColorFor(subject);
+    row.style.setProperty('--subj-color', color);
+    row.style.setProperty('--subj-bg', hexToRgba(color, 0.16));
+    row.style.setProperty('--subj-border', hexToRgba(color, 0.5));
+    const label = document.createElement('div');
+    label.className = 'subject-tip-label';
+    label.textContent = subject;
+    row.appendChild(label);
+    row.appendChild(buildRevisionTip(subject, null, `${dateISO}-sched-${subject}`));
+    return row;
+  }
+
+  // Matières qui ont cours à une date donnée, d'après l'emploi du temps A/B
+  // (indépendant de HOMEWORK — ça marche même si aucun devoir n'a été saisi
+  // ce jour-là). Tableau vide le week-end.
+  function subjectsScheduledOn(dateISO) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    if (dow === 0 || dow === 6) return [];
+    const dayIdx = dow - 1; // 1 (lundi) -> 0 ... 5 (vendredi) -> 4
+    const periods = SCHEDULE[getWeekType(dateISO)][dayIdx];
+    const subjects = [];
+    periods.forEach(p => { if (p && !subjects.includes(p.s)) subjects.push(p.s); });
+    return subjects;
+  }
+
+  // Les n prochains jours d'école (lundi-vendredi) à partir du lendemain de
+  // fromISO — utilisé pour proposer un tip même les jours où aucun devoir n'a
+  // encore été saisi du tout.
+  function nextSchoolDays(fromISO, n) {
+    const result = [];
+    let cursor = addDaysISO(fromISO, 1);
+    while (result.length < n) {
+      const [y, m, d] = cursor.split('-').map(Number);
+      const dow = new Date(y, m - 1, d).getDay();
+      if (dow !== 0 && dow !== 6) result.push(cursor);
+      cursor = addDaysISO(cursor, 1);
+    }
+    return result;
+  }
+
   function renderDays() {
     const container = document.getElementById('days');
     container.innerHTML = '';
     const todayISO = toDateStr(new Date());
     let totalItems = 0, doneItems = 0;
 
-    visibleHomework().forEach((dayData) => {
+    // On rend les vrais jours de HOMEWORK, plus — uniquement pour le tout
+    // prochain jour d'école (pas plus loin, pour ne pas noyer la page sous
+    // des rappels vides) — un rappel par matière prévue au planning ce
+    // jour-là mais sans aucun devoir saisi (ex: Anglais demain, sans devoir
+    // donné). Le tout trié par date pour rester chronologique.
+    const [nextSchoolDay] = nextSchoolDays(todayISO, 1);
+    const realDays = visibleHomework();
+    const realDates = new Set(realDays.map(d => d.dateISO));
+    const syntheticDates = (!realDates.has(nextSchoolDay) && subjectsScheduledOn(nextSchoolDay).length > 0)
+      ? [nextSchoolDay]
+      : [];
+    const allEntries = realDays.map(d => ({ dateISO: d.dateISO, dayData: d }))
+      .concat(syntheticDates.map(dISO => ({ dateISO: dISO, dayData: null })))
+      .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+
+    allEntries.forEach(({ dateISO: entryDateISO, dayData }) => {
+      if (!dayData) {
+        // Jour d'école à venir sans aucun devoir connu : pas de "carte"
+        // normale (rien à cocher), juste un petit rappel par matière prévue.
+        const emptyCard = document.createElement('div');
+        emptyCard.className = 'day-card day-card-empty';
+        const emptyHead = document.createElement('div');
+        emptyHead.className = 'day-head';
+        emptyHead.innerHTML = `<span class="dname">${formatDayLabel(entryDateISO)}</span><span class="dcount">Aucun devoir connu</span>`;
+        emptyCard.appendChild(emptyHead);
+        subjectsScheduledOn(entryDateISO).forEach(subject => {
+          emptyCard.appendChild(buildSubjectTipRow(subject, entryDateISO));
+        });
+        container.appendChild(emptyCard);
+        return;
+      }
+
       const card = document.createElement('div');
       card.className = 'day-card';
 
@@ -1215,56 +1371,25 @@
         // venir (ou du jour) qui n'a pas déjà son propre bloc train/exercise
         // ci-dessus (sinon ce serait redondant).
         if (item.type === 'exercice' && !item.train && !item.exercise && dayData.dateISO >= todayISO) {
-          const source = findRevisionSource(item.subject, item);
-          const tipCard = source ? pickTipCard(source.item) : null;
-
-          if (tipCard) {
-            const tipPanelId = `tip-${dayData.dateISO}-${itemIdx}`;
-            const tipBtn = document.createElement('div');
-            tipBtn.className = 'tip-btn';
-            tipBtn.textContent = '💡 Petit tip de révision';
-            tipBtn.addEventListener('click', () => {
-              document.getElementById(tipPanelId).classList.toggle('open');
-            });
-            content.appendChild(tipBtn);
-
-            const tipPanel = document.createElement('div');
-            tipPanel.className = 'train-panel';
-            tipPanel.id = tipPanelId;
-            tipPanel.innerHTML = `<div class="train-title">Clique sur la carte pour voir la réponse</div>`;
-
-            const tipRow = document.createElement('div');
-            tipRow.className = 'flash-row';
-            const fc = document.createElement('div');
-            fc.className = 'flashcard';
-            fc.textContent = tipCard.front;
-            fc.dataset.front = tipCard.front;
-            fc.dataset.back = tipCard.back;
-            fc.addEventListener('click', () => {
-              const flipped = fc.classList.toggle('flipped');
-              fc.textContent = flipped ? fc.dataset.back : fc.dataset.front;
-            });
-            tipRow.appendChild(fc);
-            tipPanel.appendChild(tipRow);
-
-            const tipSource = document.createElement('div');
-            tipSource.className = 'tip-source';
-            tipSource.textContent = `(repris du ${formatDayLabel(source.dateISO).toLowerCase()})`;
-            tipPanel.appendChild(tipSource);
-
-            content.appendChild(tipPanel);
-          } else {
-            const generic = document.createElement('div');
-            generic.className = 'tip-generic';
-            generic.textContent = `🔁 Pense à réviser : ${item.subject}`;
-            content.appendChild(generic);
-          }
+          content.appendChild(buildRevisionTip(item.subject, item, `${dayData.dateISO}-${itemIdx}`));
         }
 
         row.appendChild(check);
         row.appendChild(content);
         card.appendChild(row);
       });
+
+      // Matières qui ont cours ce jour-là (d'après l'emploi du temps A/B)
+      // mais qu'aucun devoir saisi ne couvre — ex: Anglais a cours mais
+      // Pronote n'a rien donné pour cette matière ce jour précis. Limité au
+      // tout prochain jour d'école pour ne pas noyer les autres jours sous
+      // des rappels vides.
+      if (dayData.dateISO === nextSchoolDay) {
+        const coveredSubjects = dayData.items.map(i => i.subject);
+        subjectsScheduledOn(dayData.dateISO)
+          .filter(subject => !coveredSubjects.includes(subject))
+          .forEach(subject => card.appendChild(buildSubjectTipRow(subject, dayData.dateISO)));
+      }
 
       container.appendChild(card);
     });
